@@ -42,50 +42,66 @@ static void PatchMethod(Class cls, SEL sel, IMP (^makeImp)(IMP original)) {
             NSLog(@"[wk-inputfocusfix] WKContentView not found — nothing to patch");
             return;
         }
-
         BOOL hooked = NO;
 
-        SEL sel1 = NSSelectorFromString(@"_elementDidFocus:userIsInteracting:blurPreviousNode:activityStateChanges:userObject:");
-        Method m1 = class_getInstanceMethod(WKContentView, sel1);
-        if (m1) {
-            IMP orig = method_getImplementation(m1);
-            IMP rep  = imp_implementationWithBlock(^ (id _self, id a0, BOOL userIsInteracting, BOOL blurPrev, id activityStateChanges, id userObject){
-                ((void(*)(id, SEL, id, BOOL, BOOL, id, id))orig)(_self, sel1, a0, YES, blurPrev, activityStateChanges, userObject);
-            });
-            method_setImplementation(m1, rep);
-            NSLog(@"[wk-inputfocusfix] hooked %@", NSStringFromSelector(sel1));
+        // iOS 13+ : _elementDidFocus:userIsInteracting:blurPreviousNode:activityStateChanges:userObject:
+        SEL sel13 = NSSelectorFromString(@"_elementDidFocus:userIsInteracting:blurPreviousNode:activityStateChanges:userObject:");
+        Method m13 = class_getInstanceMethod(WKContentView, sel13);
+        if (m13) {
+            typedef void (*orig_t)(id, SEL, void*, BOOL, BOOL, BOOL, id);
+            orig_t orig = (orig_t)method_getImplementation(m13);
+            id blk = ^(id me, void *arg0, BOOL userIsInteracting, BOOL blurPrev, BOOL activityStateChanges, id userObject){
+                orig(me, sel13, arg0, YES, blurPrev, activityStateChanges, userObject);
+            };
+            method_setImplementation(m13, imp_implementationWithBlock(blk));
+            NSLog(@"[wk-inputfocusfix] hooked %@", NSStringFromSelector(sel13));
             hooked = YES;
         }
 
-        SEL sel2 = NSSelectorFromString(@"_elementDidFocus:userIsInteracting:blurPreviousNode:changingActivityState:userObject:");
-        Method m2 = class_getInstanceMethod(WKContentView, sel2);
-        if (m2) {
-            IMP orig = method_getImplementation(m2);
-            IMP rep  = imp_implementationWithBlock(^ (id _self, id a0, BOOL userIsInteracting, BOOL blurPrev, id changingActivityState, id userObject){
-                ((void(*)(id, SEL, id, BOOL, BOOL, id, id))orig)(_self, sel2, a0, YES, blurPrev, changingActivityState, userObject);
-            });
-            method_setImplementation(m2, rep);
-            NSLog(@"[wk-inputfocusfix] hooked %@", NSStringFromSelector(sel2));
+        // iOS 12.2–13.0 beta : _elementDidFocus:...changingActivityState:... (BOOL)
+        SEL sel122 = NSSelectorFromString(@"_elementDidFocus:userIsInteracting:blurPreviousNode:changingActivityState:userObject:");
+        Method m122 = class_getInstanceMethod(WKContentView, sel122);
+        if (m122) {
+            typedef void (*orig_t)(id, SEL, void*, BOOL, BOOL, BOOL, id);
+            orig_t orig = (orig_t)method_getImplementation(m122);
+            id blk = ^(id me, void *arg0, BOOL userIsInteracting, BOOL blurPrev, BOOL changingActivityState, id userObject){
+                orig(me, sel122, arg0, YES, blurPrev, changingActivityState, userObject);
+            };
+            method_setImplementation(m122, imp_implementationWithBlock(blk));
+            NSLog(@"[wk-inputfocusfix] hooked %@", NSStringFromSelector(sel122));
             hooked = YES;
         }
 
-        SEL sel3 = NSSelectorFromString(@"_startAssistingNode:userIsInteracting:blurPreviousNode:userObject:");
-        Method m3 = class_getInstanceMethod(WKContentView, sel3);
-        if (m3) {
-            IMP orig = method_getImplementation(m3);
-            IMP rep  = imp_implementationWithBlock(^ (id _self, void* node, BOOL userIsInteracting, BOOL blurPrev, id userObject){
-                ((void(*)(id, SEL, void*, BOOL, BOOL, id))orig)(_self, sel3, node, YES, blurPrev, userObject);
-            });
-            method_setImplementation(m3, rep);
-            NSLog(@"[wk-inputfocusfix] hooked %@", NSStringFromSelector(sel3));
+        // iOS 11.3–12.1 : _startAssistingNode:...changingActivityState:... (BOOL)
+        SEL sel113 = NSSelectorFromString(@"_startAssistingNode:userIsInteracting:blurPreviousNode:changingActivityState:userObject:");
+        Method m113 = class_getInstanceMethod(WKContentView, sel113);
+        if (m113) {
+            typedef void (*orig_t)(id, SEL, void*, BOOL, BOOL, BOOL, id);
+            orig_t orig = (orig_t)method_getImplementation(m113);
+            id blk = ^(id me, void *node, BOOL userIsInteracting, BOOL blurPrev, BOOL changingActivityState, id userObject){
+                orig(me, sel113, node, YES, blurPrev, changingActivityState, userObject);
+            };
+            method_setImplementation(m113, imp_implementationWithBlock(blk));
+            NSLog(@"[wk-inputfocusfix] hooked %@", NSStringFromSelector(sel113));
             hooked = YES;
         }
 
-        if (hooked) {
-            NSLog(@"[wk-inputfocusfix] Patch applied");
-        } else {
-            NSLog(@"[wk-inputfocusfix] No compatible selectors found — patch not applied");
+        // iOS 10–11.2 : _startAssistingNode:userIsInteracting:blurPreviousNode:userObject:
+        SEL selOld = NSSelectorFromString(@"_startAssistingNode:userIsInteracting:blurPreviousNode:userObject:");
+        Method mOld = class_getInstanceMethod(WKContentView, selOld);
+        if (mOld) {
+            typedef void (*orig_t)(id, SEL, void*, BOOL, BOOL, id);
+            orig_t orig = (orig_t)method_getImplementation(mOld);
+            id blk = ^(id me, void *node, BOOL userIsInteracting, BOOL blurPrev, id userObject){
+                orig(me, selOld, node, YES, blurPrev, userObject);
+            };
+            method_setImplementation(mOld, imp_implementationWithBlock(blk));
+            NSLog(@"[wk-inputfocusfix] hooked %@", NSStringFromSelector(selOld));
+            hooked = YES;
         }
+
+        if (hooked) NSLog(@"[wk-inputfocusfix] Patch applied");
+        else NSLog(@"[wk-inputfocusfix] No compatible selectors found — patch not applied");
     });
 }
 
