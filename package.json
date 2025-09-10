@@ -1,0 +1,7 @@
+{
+  "name": "cordova-plugin-ios-inputfocusfix",
+  "version": "1.0.0",
+  "description": "Allow programmatic keyboard in WKWebView (use with caution).",
+  "cordova": { "id": "cordova-plugin-ios-inputfocusfix", "platforms": ["ios"] },
+  "files": ["plugin.xml", "src", "www", "README.md", "LICENSE"]
+}
