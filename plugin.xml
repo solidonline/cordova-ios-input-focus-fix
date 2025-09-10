@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="cordova-plugin-ios-inputfocusfix" version="1.0.0"
+        xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        xmlns:android="http://schemas.android.com/apk/res/android">
+  <name>iOS WKWebView Input Focus Fix</name>
+  <description>Allows programmatic keyboard display in WKWebView (use with caution).</description>
+  <license>MIT</license>
+
+  <!-- (необязательно) пустой JS-модуль, чтобы плагин был “виден” -->
+  <js-module src="www/empty.js" name="WKInputFocusFix">
+    <clobbers target="cordova.plugins.wkInputFocusFix"/>
+  </js-module>
+
+  <platform name="ios">
+    <framework src="WebKit.framework" />
+    <source-file src="src/ios/WKInputFocusFix.m" />
+  </platform>
+</plugin>
