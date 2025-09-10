@@ -1,6 +1,11 @@
+#if __has_include(<Cordova/CDVPlugin.h>)
+#import <Cordova/CDVPlugin.h>
+#else
+#import "CDVPlugin.h"   // fallback для старых проектов/сборок
+#endif
+
 #import <WebKit/WebKit.h>
 #import <objc/runtime.h>
-#import "CDV.h"
 
 static void PatchMethod(Class cls, SEL sel, IMP (^makeImp)(IMP original)) {
     Method m = class_getInstanceMethod(cls, sel);
@@ -16,18 +21,16 @@ static void PatchMethod(Class cls, SEL sel, IMP (^makeImp)(IMP original)) {
 @implementation WKInputFocusFix
 
 - (void)pluginInitialize {
-    // Читаем <preference name="KeyboardDisplayRequiresUserAction" value="false" />
-    // В settings ключи нижним регистром.
     id pref = self.commandDelegate.settings[@"keyboarddisplayrequiresuseraction"];
-    BOOL requiresUserAction = YES; // дефолт iOS
-    if ([pref respondsToSelector:@selector(boolValue)]) {
-        requiresUserAction = [pref boolValue];
-    } else if ([pref isKindOfClass:[NSString class]]) {
-        requiresUserAction = [((NSString *)pref) boolValue];
-    }
+    BOOL requiresUserAction = YES;
+    if ([pref respondsToSelector:@selector(boolValue)]) requiresUserAction = [pref boolValue];
+    else if ([pref isKindOfClass:[NSString class]]) requiresUserAction = [((NSString*)pref) boolValue];
 
     if (!requiresUserAction) {
+        NSLog(@"[wk-inputfocusfix] enabling patch (KeyboardDisplayRequiresUserAction=false)");
         [self.class enablePatch];
+    } else {
+        NSLog(@"[wk-inputfocusfix] pref=true; patch disabled");
     }
 }
 
@@ -35,39 +38,54 @@ static void PatchMethod(Class cls, SEL sel, IMP (^makeImp)(IMP original)) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         Class WKContentView = NSClassFromString(@"WKContentView");
-        if (!WKContentView) return;
+        if (!WKContentView) {
+            NSLog(@"[wk-inputfocusfix] WKContentView not found — nothing to patch");
+            return;
+        }
 
-        // iOS 13+ (и актуальные iOS 17/18):
-        SEL selFocusActChanges = NSSelectorFromString(@"_elementDidFocus:userIsInteracting:blurPreviousNode:activityStateChanges:userObject:");
-        PatchMethod(WKContentView, selFocusActChanges, ^IMP(IMP original){
-            if (!original) return (IMP)NULL;
-            return imp_implementationWithBlock(^ (id _self, id arg0, BOOL userIsInteracting, BOOL blurPrev, id activityStateChanges, id userObject){
-                // принудительно считаем, что пользователь взаимодействует
-                ((void(*)(id, SEL, id, BOOL, BOOL, id, id))original)(_self, selFocusActChanges, arg0, YES, blurPrev, activityStateChanges, userObject);
+        BOOL hooked = NO;
+
+        SEL sel1 = NSSelectorFromString(@"_elementDidFocus:userIsInteracting:blurPreviousNode:activityStateChanges:userObject:");
+        Method m1 = class_getInstanceMethod(WKContentView, sel1);
+        if (m1) {
+            IMP orig = method_getImplementation(m1);
+            IMP rep  = imp_implementationWithBlock(^ (id _self, id a0, BOOL userIsInteracting, BOOL blurPrev, id activityStateChanges, id userObject){
+                ((void(*)(id, SEL, id, BOOL, BOOL, id, id))orig)(_self, sel1, a0, YES, blurPrev, activityStateChanges, userObject);
             });
-        });
+            method_setImplementation(m1, rep);
+            NSLog(@"[wk-inputfocusfix] hooked %@", NSStringFromSelector(sel1));
+            hooked = YES;
+        }
 
-        // iOS 12.2–13 beta (другое имя параметра):
-        SEL selFocusChanging = NSSelectorFromString(@"_elementDidFocus:userIsInteracting:blurPreviousNode:changingActivityState:userObject:");
-        PatchMethod(WKContentView, selFocusChanging, ^IMP(IMP original){
-            if (!original) return (IMP)NULL;
-            return imp_implementationWithBlock(^ (id _self, id arg0, BOOL userIsInteracting, BOOL blurPrev, id changingActivityState, id userObject){
-                ((void(*)(id, SEL, id, BOOL, BOOL, id, id))original)(_self, selFocusChanging, arg0, YES, blurPrev, changingActivityState, userObject);
+        SEL sel2 = NSSelectorFromString(@"_elementDidFocus:userIsInteracting:blurPreviousNode:changingActivityState:userObject:");
+        Method m2 = class_getInstanceMethod(WKContentView, sel2);
+        if (m2) {
+            IMP orig = method_getImplementation(m2);
+            IMP rep  = imp_implementationWithBlock(^ (id _self, id a0, BOOL userIsInteracting, BOOL blurPrev, id changingActivityState, id userObject){
+                ((void(*)(id, SEL, id, BOOL, BOOL, id, id))orig)(_self, sel2, a0, YES, blurPrev, changingActivityState, userObject);
             });
-        });
+            method_setImplementation(m2, rep);
+            NSLog(@"[wk-inputfocusfix] hooked %@", NSStringFromSelector(sel2));
+            hooked = YES;
+        }
 
-        // Старые iOS (10–12): до iOS 12 — другой метод
-        SEL selStartAssist = NSSelectorFromString(@"_startAssistingNode:userIsInteracting:blurPreviousNode:userObject:");
-        PatchMethod(WKContentView, selStartAssist, ^IMP(IMP original){
-            if (!original) return (IMP)NULL;
-            return imp_implementationWithBlock(^ (id _self, void* node, BOOL userIsInteracting, BOOL blurPrev, id userObject){
-                ((void(*)(id, SEL, void*, BOOL, BOOL, id))original)(_self, selStartAssist, node, YES, blurPrev, userObject);
+        SEL sel3 = NSSelectorFromString(@"_startAssistingNode:userIsInteracting:blurPreviousNode:userObject:");
+        Method m3 = class_getInstanceMethod(WKContentView, sel3);
+        if (m3) {
+            IMP orig = method_getImplementation(m3);
+            IMP rep  = imp_implementationWithBlock(^ (id _self, void* node, BOOL userIsInteracting, BOOL blurPrev, id userObject){
+                ((void(*)(id, SEL, void*, BOOL, BOOL, id))orig)(_self, sel3, node, YES, blurPrev, userObject);
             });
-        });
+            method_setImplementation(m3, rep);
+            NSLog(@"[wk-inputfocusfix] hooked %@", NSStringFromSelector(sel3));
+            hooked = YES;
+        }
 
-#ifdef DEBUG
-        NSLog(@"[cordova-plugin-ios-inputfocusfix] Patch applied (WKWebView keyboard can show without user action).");
-#endif
+        if (hooked) {
+            NSLog(@"[wk-inputfocusfix] Patch applied");
+        } else {
+            NSLog(@"[wk-inputfocusfix] No compatible selectors found — patch not applied");
+        }
     });
 }
 

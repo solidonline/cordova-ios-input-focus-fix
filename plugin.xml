@@ -6,13 +6,21 @@
   <description>Allows programmatic keyboard display in WKWebView (use with caution).</description>
   <license>MIT</license>
 
-  <!-- (необязательно) пустой JS-модуль, чтобы плагин был “виден” -->
+  <!-- пустой JS-модуль -->
   <js-module src="www/empty.js" name="WKInputFocusFix">
     <clobbers target="cordova.plugins.wkInputFocusFix"/>
   </js-module>
 
   <platform name="ios">
-    <framework src="WebKit.framework" />
-    <source-file src="src/ios/WKInputFocusFix.m" />
-  </platform>
+	  <framework src="WebKit.framework" />
+	  <source-file src="src/ios/WKInputFocusFix.m" compiler-flags="-fobjc-arc" />
+
+	  <!-- Регистрируем сервис и заставляем создать экземпляр при старте -->
+	  <config-file target="config.xml" parent="/*">
+		<feature name="WKInputFocusFix">
+		  <param name="ios-package" value="WKInputFocusFix" />
+		  <param name="onload" value="true" />
+		</feature>
+	  </config-file>
+	</platform>
 </plugin>
